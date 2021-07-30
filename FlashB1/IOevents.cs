@@ -12,7 +12,6 @@ namespace FlashB1
         // any async eventhandlers??
         public static event EventHandler<SocketArgObj> SendingCompleteEvent;
         public static event EventHandler<SocketArgObj> RecCompleteEvent;
-
         public static void SendInvoke(object sender, SocketArgObj s)
         {
             if (SendingCompleteEvent == null)
