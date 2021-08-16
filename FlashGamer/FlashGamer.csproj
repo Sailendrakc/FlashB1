@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net4.5</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="FlashB1">
+      <HintPath>..\..\FlashB1\FlashB1\bin\Debug\net4.5\FlashB1.dll</HintPath>
+    </Reference>
+    <Reference Include="FlashPeer">
+      <HintPath>..\..\FlashPeer\FlashPeer\bin\Debug\net4.5\FlashPeer.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
