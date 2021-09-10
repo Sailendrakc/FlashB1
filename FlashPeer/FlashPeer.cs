@@ -14,7 +14,7 @@ namespace FlashPeer
         /// <summary>
         /// This stores the difference in UTC now time between peer and server in ticks as a milisecond/nano.
         /// </summary>
-        public long DifferenceTicks { get; set; }
+        public TimeSpan DifferenceTimespan { get; set; }
 
         /// <summary>
         /// It is the time when server received first hello packet.
@@ -46,6 +46,7 @@ namespace FlashPeer
         public FlashPeer(IPEndPoint ep)
         {
             endpoint = ep;
+            
         }
 
         public void SetLastDateTime(DateTime dt)

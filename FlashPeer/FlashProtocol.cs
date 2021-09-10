@@ -14,6 +14,7 @@ namespace FlashPeer
         internal UdpListener channel;
         public PacketDeserializer Pockets = new PacketDeserializer();
         public PacketSerializer Pmaker = new PacketSerializer();
+        public ConnectionManager ConnectionPlugin = new ConnectionManager();
         internal Crypto crypto;
 
         //public event EventHandler<RecArgs> DataReceiveEvent;

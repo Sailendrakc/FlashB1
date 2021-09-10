@@ -15,6 +15,7 @@ namespace FlashPeer
         private int th = 0;
 
         public FlashPeer Ipeer;
+        private bool isConnected = false;
 
         public HSfromServer(FlashPeer ipeer)
         {
@@ -64,8 +65,13 @@ namespace FlashPeer
             aTimer.Dispose();
 
             sw.Stop();
-            //meaning handshake failed.
-            FlashProtocol.Instance.RemovePeer(Ipeer.endpoint.ToString(), true);
+
+            if (!isConnected)
+            {
+                //failed
+                FlashProtocol.Instance.ConnectionPlugin.RemoveFromPendingConnections(Ipeer.endpoint.ToString(), true, true);
+            }
+
         }
 
         public void t_Received(long ticks)
@@ -123,16 +129,17 @@ namespace FlashPeer
                 }
 
                 //first transfer and confirm space. 
-                if (!FlashProtocol.Instance.AddClientFromHandshakes(Ipeer.endpoint.ToString()))
+                if (!FlashProtocol.Instance.ConnectionPlugin.OnConnectionConfirmed(Ipeer.endpoint.ToString(), true))
                 {
                     return;
                 }
 
                 //now send it
-
+                isConnected = true;
                 Ipeer.SendData(data);
-                Ipeer.DifferenceTicks = ldiff;
+                Ipeer.DifferenceTimespan = new TimeSpan(ldiff);
 
+                OnNoResponse(null, null);
             }
             catch (Exception)
             {

@@ -12,6 +12,10 @@ namespace FlashPeer
         Timer timer = new Timer();
         Timer endtimer = new Timer();
         private int nth = 1;
+
+        private long? diffticks = null;
+        private bool isconnected = false;
+
         public HSfromClient(FlashPeer server)
         {
             Speer = server;
@@ -51,6 +55,15 @@ namespace FlashPeer
             timer.Stop();
             timer.Close();
             timer.Dispose();
+
+            if (isconnected)
+            {
+                FlashProtocol.Instance.ConnectionPlugin.OnConnectionConfirmed(Speer.endpoint.ToString(), false);
+            }
+            else
+            {
+                FlashProtocol.Instance.ConnectionPlugin.RemoveFromPendingConnections(Speer.endpoint.ToString(), false, true);
+            }
         }
 
         public void AfterHelloReply(long tiks)
@@ -92,6 +105,7 @@ namespace FlashPeer
                     Endtimer_Elapsed(null, null);
                     return;
                 }
+                nth++;
             }
         }
 
@@ -100,19 +114,19 @@ namespace FlashPeer
             //get the diff and store somewhere.
             //diff ticks are ticks of difference.
             //add these ticks to utcnow for pretty accurate server utcnow
+            //save utc difference and end.
+            if (diffticks != null)
+            {
+                Speer.DifferenceTimespan = new TimeSpan((long)diffticks);
+                isconnected = true;
+            }
 
-            Speer.DifferenceTicks = ticks;
-
-            //move peer to connected
-            FlashProtocol.Instance.AddPeerFromPending(Speer.endpoint.ToString(), false);
             Endtimer_Elapsed(null, null);
-            Console.WriteLine("Connected to server");
         }
 
-        private bool SendHello() //unreliable in packet format
+        public bool SendHello() //unreliable in packet format
         {
-            if (nth > 4) { return false; }
-            object lo = new object();
+            if (nth > ) { return false; }
 
             byte[] data;
 
@@ -144,10 +158,6 @@ namespace FlashPeer
                 }
 
                 Speer.SendData(data);
-                lock (lo)
-                {
-                    FlashProtocol.Instance.Connectings.Add(Speer.endpoint.ToString(), Speer);
-                }
                 return true;
             }
 
@@ -166,7 +176,6 @@ namespace FlashPeer
             {
                 opcode = Opfunctions.Hello4;
             }
-
 
             data = new byte[PacketSerializer.MinLenOfPacket + 8];
 
