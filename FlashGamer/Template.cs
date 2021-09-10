@@ -38,8 +38,6 @@ namespace FlashGamer
             const char oneInvokerID = '*';
         }
 
-        public readonly struct user
-
         /*
                  REText = 51,
         REVoice = 52,

@@ -14,7 +14,7 @@ namespace FlashPeer
 
         public ServerInfo(string serverIPep)
         {
-            ExternalIPEP1 = FClient.IPEPparser(serverIPep);
+           // ExternalIPEP1 = FClient.IPEPparser(serverIPep);
             this.Port1 = ExternalIPEP1.Port;
         }
 

@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using FlashB1;
-using FlashPeer.interfaces;
+using System.Timers;
 
 namespace FlashPeer
 {
-    internal class FlashProtocol
+    public class FlashProtocol
     {
         public static FlashProtocol Instance;
         private UdpDataCard socketConfig;
@@ -16,79 +16,151 @@ namespace FlashPeer
         public PacketSerializer Pmaker = new PacketSerializer();
         internal Crypto crypto;
 
-        public static event EventHandler<EventColl> OtherEvents;
+        //public event EventHandler<RecArgs> DataReceiveEvent;
+        public event EventHandler<EventColl> OtherEvents;
+        public event EventHandler<string> DisconnectEvent; // pass Ip of disconnected peer.
 
+        private Timer DeadTimer = new Timer();
+        private int DeadInterval = 30; //sec
+        private Timer AliveTimer = new Timer();
+        private int AliveInterval = 30;//sec
 
-        public Dictionary<string, IFlashPeer> Connections { get; set; }
-        public Dictionary<string, IFlashPeer> Connectings { get; set; }
+        public bool isServer = false;
+
+        public Dictionary<string, FlashPeer> Connections { get; set; } = new Dictionary<string, FlashPeer>();
+        public Dictionary<string, HSfromServer> pendingClients { get; set; } = new Dictionary<string, HSfromServer>();
+        public Dictionary<string, HSfromClient> pendingServers { get; set; } = new Dictionary<string, HSfromClient>();
 
         public int Max_Peers;
         public int Current_Peers;
 
-        public FlashProtocol()
+        public FlashProtocol(bool isserver, int? port, string key)
         {
-            socketConfig = new UdpDataCard(5124, 150, 150, 512);
+            if(port == null)
+            {
+                port = 5124;
+            }
+            socketConfig = new UdpDataCard((ushort)port, 150, 150, 512);
+            isServer = isserver;
+            Max_Peers = 1000;
+            Current_Peers = 0;
             channel = new UdpListener(socketConfig);
             channel.RecCompleteEvent += Channel_RecCompleteEvent;
-
-            Instance = this;
-        }
-
-        private void Channel_RecCompleteEvent(object sender, IArgObject e)
-        {
-            IdentifyRequest(ProcessExistingClientRequest, ProcessNewClientRequest, e);
-        }
-
-        public void DeSerializeAndMapRequest(Action<IInternalRequest> onInternalRequsest, 
-            Action<IExternalRequest> onExternalRequest, IArgObject actualRequest)
-        {
-            throw new NotImplementedException();
-        }
-
-        public void IdentifyRequest(Action<IFlashPeer, IArgObject> ExistingClient, 
-            Action<IArgObject> NewRequest, IArgObject actualRequest)
-        {
-            var pf = new PacketFilter(actualRequest);
-            var res = pf.CheckData();
-
-            if(!(Connections.TryGetValue(actualRequest.GetClient().ToString(), out var client))){
-                //client does not exists
-                NewRequest(actualRequest);
+            crypto = new Crypto(key, isserver);
+            if (isServer)
+            {
+                //timer
+                DeadTimer.Interval = (DeadInterval + 2) * 1000;
+                DeadTimer.AutoReset = true;
+                DeadTimer.Elapsed -= DeadTimer_Elapsed;
+                DeadTimer.Elapsed += DeadTimer_Elapsed;
             }
             else
             {
-                //client exists
-                ExistingClient(client, actualRequest);
+
+                AliveTimer.Interval = AliveInterval * 1000;
+                AliveTimer.AutoReset = true;
+                /*AliveTimer.Elapsed -= AliveTimer_Elapsed;
+                AliveTimer.Elapsed += AliveTimer_Elapsed;*/
+            }
+            Instance = this;
+        }
+
+       /* private void AliveTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            if(Current_Peers > 0)
+            {
+                foreach (var item in Connections)
+                {
+                    SendAck(item.Value);
+                }
+            }
+        }*/
+
+        private void Channel_RecCompleteEvent(object sender, IArgObject e)
+        {
+            var pf = new PacketFilter(e);
+            var res = pf.CheckData();
+            if(res== null)
+            {
+                return;
+            }
+            res.peer.RecData(res);
+        }
+
+        //listeners events and timers
+        public void StartPeer()
+        {
+            if(channel != null)
+            {
+                channel.StartListener();
+
+                //also start the keep alive timer
+                if (isServer)
+                {
+                    DeadTimer.Start();
+                }
+                else
+                {
+                    AliveTimer.Start();
+                }
+                RaiseOtherEvent("Started Listening.", null, EventType.ConsoleMessage, null);
             }
         }
 
-        public void ProcessHelloRequest(IArgObject helloRequest)
+        public void StopListening()
         {
-            throw new NotImplementedException();
+            
         }
 
-        private void ProcessExistingClientRequest(IFlashPeer client, IArgObject requestData)
+        private void DeadTimer_Elapsed(object sender, ElapsedEventArgs e)
         {
-
+            KillOfflineClient(61);
         }
 
-        private void ProcessNewClientRequest(IArgObject requestData)
+        private void KillOfflineClient(int timeS)
         {
-            //first deserialize
+            RaiseOtherEvent($"Refreshing peer list.", null, EventType.ConsoleMessage, null);
+            DateTime d = DateTime.UtcNow;
+            List<string> dated = new List<string>();
+            double diff = 0;
+            foreach (var item in Instance.Connections)
+            {
+                diff = (d - item.Value.lastDateTime).TotalSeconds;
+                if (diff > timeS)
+                {
+                    item.Value.connected = false;
+                    dated.Add(item.Key);
+                }
+            }
 
+            foreach (var item in dated)
+            {
+                Console.WriteLine($"Last time: {Instance.Connections[item].lastDateTime.ToString("MM/dd/yyyy hh:mm:ss.fff")} , Now time: {d.ToString("MM/dd/yyyy hh:mm:ss.fff")} and diff is: {diff}");
+                Instance.RemovePeer(item, true);
+            }
         }
-
-
 
         //functions
-        internal void RemovePeer(string IP, bool fromConnected)
+        internal void RemovePeer(string IP, bool fromHandshakes)
         {
-            IFlashPeer p;
-            if (fromConnected)
+            if (fromHandshakes)
+            {
+                if (pendingClients.TryGetValue(IP, out var handshake))
+                {
+                    //p.connected = false;
+                    pendingClients.Remove(IP);
+                }
+                else
+                {
+                    pendingServers.Remove(IP);
+                }
+            }
+            else
             {
                 lock (Connections)
                 {
-                    if (Connections.TryGetValue(IP, out p))
+                    if (Connections.TryGetValue(IP, out var peer))
                     {
                         //p.connected = false;
                         Connections.Remove(IP);
@@ -97,41 +169,60 @@ namespace FlashPeer
                     }
                 }
             }
-            else
-            {
-                if (Connectings.TryGetValue(IP, out p))
-                {
-                    //p.connected = false;
-                    Connectings.Remove(IP);
-                }
-            }
 
         }
 
-        internal bool AddClientFromConnectings(string ip)
+        internal bool AddPeerFromPending(string ip, bool fromPendingClients)
         {
-            if(Connections.TryGetValue(ip, out var theclient) || (!Connectings.TryGetValue(ip, out theclient)))
+            if (Connections.TryGetValue(ip, out var theclient))
             {
-                RemovePeer(ip, true);
+                RemovePeer(ip, false);
                 return false;
+            }
+
+            if (fromPendingClients)
+            {
+                if (pendingClients.TryGetValue(ip, out var theshake))
+                {
+                    lock (pendingClients)
+                    {
+                        Connections.Add(ip, theshake.Ipeer);
+                        Current_Peers++;
+                    }
+                    RemovePeer(ip, true);
+
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
             }
             else
             {
-                lock (Connections)
+                if (pendingServers.TryGetValue(ip, out var theshake))
                 {
-                    Connections.Add(ip, theclient);
-                    Current_Peers++;
-                }
+                    lock (pendingServers)
+                    {
+                        Connections.Add(ip, theshake.Speer);
+                        Current_Peers++;
+                    }
+                    RemovePeer(ip, true);
 
-                RemovePeer(ip, false);
-                return true;
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
             }
+
         }
 
         public void StartHello(IPEndPoint ep)
         {
             FlashPeer target = new FlashPeer(ep);
-            var sh = new ClientHandshake(target);
+            var sh = new HSfromClient(target);
         }
 
         internal Header ReadPacket(IArgObject packet)
@@ -160,7 +251,7 @@ namespace FlashPeer
             var noOfPicklets = 1;
             var len = packet.GetRawData().Length;
 
-            var counter = PacketManager.Overhead;
+            var counter = PacketSerializer.MinLenOfPacket;
             while (counter < len)
             {
                 var lenofcurrent = BitConverter.ToUInt16(packet.GetRawData(), counter);
@@ -175,7 +266,7 @@ namespace FlashPeer
             ii.AllPicklets = new Pockets[noOfPicklets];
 
             counter = 0;
-            for (int i = PacketManager.Overhead; i < len;)
+            for (int i = PacketSerializer.MinLenOfPacket; i < len;)
             {
                 var lenofcurrent = BitConverter.ToUInt16(packet.GetRawData(), i);
                 var pic = new Pockets(packet.GetRawData(), i, lenofcurrent, packet.GetRawData()[i + 2]);
@@ -187,6 +278,20 @@ namespace FlashPeer
             return ii;
         }
 
+        /*public void SendAck(FlashPeer p)
+        {
+            //prepare ack packet.
+            byte[] dat = new byte[PacketSerializer.MinLenOfPacket + 3];
+            Array.Copy((BitConverter.GetBytes((ushort)Opfunctions.ack)), 0, dat, PacketSerializer.POS_OF_OPCODE, 2);
+            Array.Copy((BitConverter.GetBytes((ushort)3)), 0, dat, PacketSerializer.POS_OF_LEN, 2);
+            Array.Copy(p.GetAckFieldForSending(24), 0, dat, PacketSerializer.PayloadSTR, 3);
+
+            if (Pmaker.HeadWriter(ref dat, false, p))
+            {
+                p.SendData(dat);
+            }
+        }
+        */
 
         //crypto methods
         public byte[] GetAESKey()
@@ -203,7 +308,7 @@ namespace FlashPeer
         {
             if (data.Length > 245)
             {
-                FClient.RaiseOtherEvent("RSA cannot encrypt more than 245 bytes", null, EventType.cryptography, null);
+                RaiseOtherEvent("RSA cannot encrypt more than 245 bytes", null, EventType.cryptography, null);
                 return null;
             }
 
@@ -237,7 +342,7 @@ namespace FlashPeer
 
         //events
 
-        public static void RaiseOtherEvent(string msg, string stacktrace, EventType et, object[] o)
+        public void RaiseOtherEvent(string msg, string stacktrace, EventType et, object[] o)
         {
             EventColl ev = new EventColl();
             ev.Message = msg;
@@ -255,9 +360,9 @@ namespace FlashPeer
         /// <param name="EventDetail"></param>
         private static void OnOtherEvent(EventColl EventDetail)
         {
-            if (OtherEvents != null)
+            if (Instance.OtherEvents != null)
             {
-                OtherEvents.Invoke(null, EventDetail);
+                Instance.OtherEvents.Invoke(null, EventDetail);
             }
         }
     }

@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using System.Net.Sockets;
 using FlashB1;
 using System.Net;
-using FlashPeer.interfaces;
 
 namespace FlashPeer
 {
@@ -18,7 +17,7 @@ namespace FlashPeer
 
         //after processing
         bool isreliable;
-        IFlashPeer sender;
+        FlashPeer sender;
 
         public PacketFilter(IArgObject e)
         {
@@ -46,7 +45,7 @@ namespace FlashPeer
             byte Rcrc = Buffer[PacketSerializer.POS_OF_CRC];
 
             Buffer[PacketSerializer.POS_OF_CRC] = 0;
-            byte Ccrc = FlashProtocol.Instance.Pmaker.ComputeChecksum(Buffer, null, (ushort)obj.BytesTransferred);
+            byte Ccrc = FlashProtocol.Instance.Pmaker.ComputeChecksum(Buffer, null, (ushort)obj.getBytesTransferred());
 
             if (Rcrc != Ccrc)
             {
@@ -59,9 +58,9 @@ namespace FlashPeer
             }
         }
 
-        private IFlashPeer CheckHello()
+        private FlashPeer CheckHello()
         {
-            var req = BitConverter.ToUInt16(Buffer, PacketManager.OPCODE);
+            var req = BitConverter.ToUInt16(Buffer, PacketSerializer.POS_OF_OPCODE);
 
             //does this requesting peer already exists??
             if (FlashProtocol.Instance.Connections.TryGetValue(obj.GetClient().ToString(), out var peer1))
@@ -93,65 +92,78 @@ namespace FlashPeer
             {
                 if (Buffer[0] == 0) //needs to be unreliable packet
                 {
+                    //good hello packet
                     if ((req == (ushort)Opfunctions.Hello))
                     {
                         if (FlashProtocol.Instance.Current_Peers >= FlashProtocol.Instance.Max_Peers)
                         {
+                            //cant accept new users anymore.
+                            //Transfer to another server?? --- MAYBE TODO
                             Console.WriteLine($"Max players: {FlashProtocol.Instance.Max_Peers} reached.");
                             return null;
                         }
+
+                        //create new peer for this client
                         peer1 = new FlashPeer((IPEndPoint)obj.GetClient());
-                        bool b1 = FlashProtocol.Instance.crypto.HelloUnpacker(obj.GetRawData(), peer1);
-                        if (b1 == false)
+                        //check crypto keys
+                        if (FlashProtocol.Instance.crypto.HelloUnpacker(obj.GetRawData(), peer1) == false)
                         {
+                            //bad crypto keys
                             return null;
                         }
-
-                        lock (FlashProtocol.Instance.Connectings)
+                        //all good, proceed to handshake, create new handshake session and pass the peer.
+                        var ch = new HSfromServer(peer1);
+                        //add the handshake session to collection.
+                        lock (FlashProtocol.Instance.pendingClients)
                         {
-                            FlashProtocol.Instance.Connectings.Add(obj.GetClient().ToString(), peer1);
+                            FlashProtocol.Instance.pendingClients.Add(peer1.endpoint.ToString(), ch);
                         }
-                        peer1.HelloReply();
                         return null;
                     }
 
+                    //good other hello packets
                     if ((req == (ushort)Opfunctions.Hello2) || (req == (ushort)Opfunctions.Hello3) || (req == (ushort)Opfunctions.Hello4))
                     {
-                        if (FlashProtocol.Instance.Connectings.TryGetValue(obj.GetClient().ToString(), out var pe))
+                        if (FlashProtocol.Instance.pendingClients.TryGetValue(obj.GetClient().ToString(), out var pe))
                         {
                             long tickss = BitConverter.ToInt64(obj.GetRawData(), PacketSerializer.PayloadSTR);
-                            ((FlashPeer)pe).ReplyHandshake.t_Received(tickss);
+                            pe.t_Received(tickss);
+                            return null;
+                        }
+                        else
+                        {
                             return null;
                         }
                     }
                 }
-
+                //bad packet, connection does not exists but is reliable paket.
                 return null;
             }
         }
 
-        // ((dno, diff), peer, expectedno)
-        private bool CheckNumber(IFlashPeer peer, byte[] dataToCheck)
+        private bool CheckNumber(FlashPeer peer, byte[] dataToCheck)
         {
-            ushort ReceivedDno = BitConverter.ToUInt16(Buffer, PacketManager.POS_OF_DNO);
             if (isreliable)
             {
-                var diff = FlashProtocol.Instance.Pmanager.PacketNoFilter(ReceivedDno, peer.OurExpectedTcpNo, peer.GetLastDateTime(true));
+                /*ushort ReceivedDno = BitConverter.ToUInt16(Buffer, PacketSerializer.POS_OF_DNO);
+                  var diff = FlashProtocol.Instance.Pmaker.PacketNoFilter(ReceivedDno, peer.OurExpectedTcpNo, peer.GetLastDateTime(true));
 
-                if (diff < 0)
-                {
-                    Console.WriteLine("Outdated packet received.");
-                    return false;
-                }
-                else
-                {
-                    peer.SetLastDateTime(true, DateTime.UtcNow);
-                    return true;
-                }
+                 if (diff < 0)
+                 {
+                     Console.WriteLine("Outdated packet received.");
+                     return false;
+                 }
+                 else
+                 {
+                     peer.SetLastDateTime(DateTime.UtcNow);
+                     return true;
+                 }*/
+                return false; //todo remove this..
             }
             else
             {
-                var dno = FlashProtocol.Instance.Pmanager.PacketNoFilterUdp(ReceivedDno, peer.OurExpectedUdpNo, peer.GetLastDateTime(false));
+                var ts = peer.BaseDateTime+ new TimeSpan((long)(BitConverter.ToUInt32(dataToCheck, PacketSerializer.POS_OF_DATE)));
+                var dno = FlashProtocol.Instance.Pmaker.PacketNoFilterUdp(ts, peer.GetLastDateTime());
 
                 if (dno < 0)
                 {
@@ -160,8 +172,7 @@ namespace FlashPeer
                 }
                 else
                 {
-                    peer.SetLastDateTime(false, DateTime.UtcNow);
-                    peer.OurExpectedUdpNo = dno + 1;
+                    peer.SetLastDateTime(DateTime.UtcNow);
                     return true;
                 }
             }
@@ -185,27 +196,14 @@ namespace FlashPeer
                 return null;
             }
             
-
             if(!CheckNumber(sender, obj.GetRawData()))
             {
                 return null;
             }
 
-            if (no.Item2.futureTCPcount >= 74 && obj.Buffer[PacketManager.Opcode] != (byte)Opfunctions.ack)
-            {
-                return null;
-            }
-
             var res = FlashProtocol.Instance.ReadPacket(obj);
+            res.peer = sender;
             return res;
-
-            if (!isreliable)
-            {
-                byte[] datee = new byte[4];
-                datee[0] = 0;
-                Array.Copy(obj.Buffer, PacketManager.DATEFORUDP, datee, 1, 3);
-                u.date = BitConverter.ToUInt32(datee, 0).ToString().Insert(2, ":").Insert(4, ":");
-            }
         }
     }
 }

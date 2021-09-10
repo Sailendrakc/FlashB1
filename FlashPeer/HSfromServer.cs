@@ -1,5 +1,4 @@
-﻿using FlashPeer.interfaces;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
@@ -7,17 +6,17 @@ using System.Timers;
 
 namespace FlashPeer
 {
-    public class ServerHandshake
+    public class HSfromServer
     {
         private Stopwatch sw = new Stopwatch();
 
         private TimeSpan d1, d2, d3;
+        private Timer aTimer;
+        private int th = 0;
 
-        public int th = 0;
-        Timer aTimer;
-        FlashPeer Ipeer;
+        public FlashPeer Ipeer;
 
-        public ServerHandshake(FlashPeer ipeer)
+        public HSfromServer(FlashPeer ipeer)
         {
             Ipeer = ipeer;
 
@@ -42,10 +41,13 @@ namespace FlashPeer
 
         private void SenHi()
         {
-            byte[] data = new byte[PacketSerializer.MinLenOfPacket];
+            byte[] data = new byte[PacketSerializer.MinLenOfPacket+8];
             Array.Copy(BitConverter.GetBytes((ushort)Opfunctions.Handshake), 0, data, PacketSerializer.POS_OF_OPCODE, 2);
-            data[PacketSerializer.POS_OF_LEN] = 0;
-            data[PacketSerializer.POS_OF_LEN + 1] = 0;
+            Ipeer.BaseDateTime = DateTime.UtcNow;
+            //copy base date time.
+            Array.Copy(BitConverter.GetBytes(Ipeer.BaseDateTime.Ticks), 0, data, PacketSerializer.PayloadSTR, 8);
+            //copy len
+            Array.Copy(BitConverter.GetBytes((ushort)8), 0, data, PacketSerializer.POS_OF_LEN, 2); 
 
             if (!(FlashProtocol.Instance.Pmaker.HeadWriter(ref data, false, Ipeer)))
             {
@@ -60,8 +62,10 @@ namespace FlashPeer
             aTimer.Stop();
             aTimer.Close();
             aTimer.Dispose();
+
+            sw.Stop();
             //meaning handshake failed.
-            Ipeer.NullifyShakeAndRemoveFromConnectings(true);
+            FlashProtocol.Instance.RemovePeer(Ipeer.endpoint.ToString(), true);
         }
 
         public void t_Received(long ticks)
@@ -99,6 +103,7 @@ namespace FlashPeer
             var ddate = (((d1 + d2 + d3).TotalMilliseconds) / 3);
             //send the retdelta
             HelloClose(ddate);
+            Ipeer.connected = true;
             OnNoResponse(null, null);
         }
 
@@ -116,15 +121,23 @@ namespace FlashPeer
                 {
                     return;
                 }
+
+                //first transfer and confirm space. 
+                if (!FlashProtocol.Instance.AddClientFromHandshakes(Ipeer.endpoint.ToString()))
+                {
+                    return;
+                }
+
+                //now send it
+
                 Ipeer.SendData(data);
                 Ipeer.DifferenceTicks = ldiff;
-                //transfer this peer to connections array.
-                FlashProtocol.Instance.AddClientFromConnectings(Ipeer.endpoint.ToString());
+
             }
             catch (Exception)
             {
                 Console.WriteLine("Error closing the hello (returning diff ticks)as server");
-                FlashProtocol.Instance.RemovePeer(Ipeer.endpoint.ToString(), false);
+                OnNoResponse(null, null);
             }
         }
     }

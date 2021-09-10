@@ -81,6 +81,11 @@ namespace FlashB1
         {
             throw new NotImplementedException();
         }
+
+        public int getBytesTransferred()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public class webSocketObject

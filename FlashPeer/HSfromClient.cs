@@ -6,16 +6,15 @@ using System.Timers;
 
 namespace FlashPeer
 {
-    public class ClientHandshake
+    public class HSfromClient
     {
-        private FlashPeer Speer;
+        public FlashPeer Speer;
         Timer timer = new Timer();
         Timer endtimer = new Timer();
         private int nth = 1;
-        public ClientHandshake(FlashPeer server)
+        public HSfromClient(FlashPeer server)
         {
             Speer = server;
-            //first create a peer in connecting.
             StartHandShake();
         }
 
@@ -26,7 +25,6 @@ namespace FlashPeer
                 Console.WriteLine("Unable to send hello.");
                 return;
             }
-            Speer.BeginHandshake = this;
 
             nth++;
             timer.Elapsed += Timer_Elapsed;
@@ -53,11 +51,9 @@ namespace FlashPeer
             timer.Stop();
             timer.Close();
             timer.Dispose();
-
-            Speer.NullifyShakeAndRemoveFromConnectings(false);
         }
 
-        public void AfterHelloReply()
+        public void AfterHelloReply(long tiks)
         {
             //send first h1 immediately
             if (!SendHello())
@@ -66,9 +62,11 @@ namespace FlashPeer
                 Endtimer_Elapsed(null, null);
             }
             nth++;
-
             timer.Interval = 100;
             timer.Start();
+
+            //set base time to now.
+            Speer.BaseDateTime = new DateTime(tiks);
         }
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
@@ -97,7 +95,7 @@ namespace FlashPeer
             }
         }
 
-        public void AfterHelloClosing(long ticks, long basetimeTicks)
+        public void AfterHelloClosing(long ticks)
         {
             //get the diff and store somewhere.
             //diff ticks are ticks of difference.
@@ -105,11 +103,8 @@ namespace FlashPeer
 
             Speer.DifferenceTicks = ticks;
 
-            //set base time to now.
-            Speer.BaseDateTime = new DateTime(basetimeTicks);
-
             //move peer to connected
-            FlashProtocol.Instance.AddClientFromConnectings(Speer.endpoint.ToString());
+            FlashProtocol.Instance.AddPeerFromPending(Speer.endpoint.ToString(), false);
             Endtimer_Elapsed(null, null);
             Console.WriteLine("Connected to server");
         }
@@ -144,7 +139,7 @@ namespace FlashPeer
 
                 if (!FlashProtocol.Instance.Pmaker.HeadWriter(ref data, false, Speer))
                 {
-                    FlashProtocol.RaiseOtherEvent("Headwriting error in Flashprotocol.SendHello()", null, EventType.ConsoleMessage, null);
+                    FlashProtocol.Instance.RaiseOtherEvent("Headwriting error in Flashprotocol.SendHello()", null, EventType.ConsoleMessage, null);
                     return false;
                 }
 
@@ -181,13 +176,14 @@ namespace FlashPeer
 
             if (!FlashProtocol.Instance.Pmaker.HeadWriter(ref data, false, Speer))
             {
-                FlashProtocol.RaiseOtherEvent("Headwriting error in Flashprotocol.SendHello()", null, EventType.ConsoleMessage, null);
+                FlashProtocol.Instance.RaiseOtherEvent("Headwriting error in Flashprotocol.SendHello()", null, EventType.ConsoleMessage, null);
                 return false;
             }
 
             Speer.SendData(data);
             return true;
 
+            //todo also wait for closing reply.
         }
     }
 }

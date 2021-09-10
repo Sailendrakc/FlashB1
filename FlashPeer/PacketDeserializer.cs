@@ -1,5 +1,4 @@
 ﻿using FlashB1;
-using FlashPeer.interfaces;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -34,7 +33,7 @@ namespace FlashPeer
             var noOfPicklets = 1;
             var len = packet.GetRawData().Length;
 
-            var counter = PacketManager.Overhead;
+            var counter = PacketSerializer.MinLenOfPacket;
             while (counter < len)
             {
                 var lenofcurrent = BitConverter.ToUInt16(packet.GetRawData(), counter);
@@ -49,7 +48,7 @@ namespace FlashPeer
             ii.AllPicklets = new Pockets[noOfPicklets];
 
             counter = 0;
-            for(int i = PacketManager.Overhead; i<len;)
+            for(int i = PacketSerializer.MinLenOfPacket; i<len;)
             {            
                 var lenofcurrent = BitConverter.ToUInt16(packet.GetRawData(), i);
                 var pic = new Pockets(packet.GetRawData(), i, lenofcurrent, packet.GetRawData()[i + 2]);
@@ -103,8 +102,12 @@ namespace FlashPeer
         readonly public static int PayloadSTR = 13;
 
         readonly public static int MinLenOfPacket = 14; // coz indexing started from 0
+
+        private int UppB = ushort.MaxValue;
+        private int MaxPackets = 24;
+        private int tickMS = 18;
                                                   
-        public bool HeadWriter(ref byte[] data, bool isReliable, IFlashPeer destination)
+        public bool HeadWriter(ref byte[] data, bool isReliable, FlashPeer destination)
         {
             if(data.Length <= MinLenOfPacket)
             {
@@ -152,6 +155,114 @@ namespace FlashPeer
             data[POS_OF_CRC] = ComputeChecksum(data, Crc16table, data.Length);
 
             return true;
+        }
+
+        public int PacketNoFilter(ushort dno, ushort OurExpectedNo, DateTime last)
+        {
+            double validDiff = DateTime.UtcNow.Subtract(last).TotalMilliseconds / tickMS;
+
+            if (dno == 0 || last == null)
+            {
+                //error
+                return -1;
+            }
+
+            if ((OurExpectedNo + MaxPackets) > UppB) //edge
+            {
+                if (dno < OurExpectedNo) // old or reset
+                {
+                    if (dno <= (MaxPackets - (UppB - OurExpectedNo))) // valid reset
+                    {
+                        int diff = (UppB - OurExpectedNo) + dno;
+                        // return dno;
+                        if (validDiff < diff) // like if 10th future packet sent in next 30 ms which is impossible
+                        {
+                            return -1;
+                        }
+                        else
+                        {
+                            return diff;
+                        }
+                    }
+                    else
+                    {
+                        return -1;
+                    }
+                }
+                else // newer
+                {
+                    int diff = dno - OurExpectedNo;
+                    if (diff >= MaxPackets) // more future
+                    {
+                        return -1;
+                    }
+                    else
+                    {
+
+                        // return dno;
+                        if (validDiff < diff) // like if 10th future packet sent in next 30 ms which is impossible
+                        {
+                            return -1;
+                        }
+                        else
+                        {
+                            return diff;
+                        }
+                    }
+                }
+            }
+            else // not edge
+            {
+                if (dno < OurExpectedNo) //old
+                {
+                    return -1;
+                }
+                else // not old
+                {
+                    int diff = dno - OurExpectedNo;
+                    if (diff >= MaxPackets) // more future
+                    {
+                        return -1;
+                    }
+                    else
+                    {
+                        // return dno;
+                        if (validDiff < diff) // like if 10th future packet sent in next 30 ms which is impossible
+                        {
+                            return -1;
+                        }
+                        else
+                        {
+                            return diff;
+                        }
+                    }
+                }
+            }
+
+        }
+
+        public int PacketNoFilterUdp(DateTime packetTime, DateTime last)
+        {
+            var timeDiff = DateTime.UtcNow.Subtract(packetTime).TotalMilliseconds;
+            //double validDiff = DateTime.UtcNow.Subtract(last).TotalMilliseconds / tickMS;
+
+            if (last == null)
+            {
+                //error
+                return -1;
+            }
+
+            if (timeDiff > 3 * 1000) // older than three second so ignore, just check, it wont happen coz ttl
+            {
+                return -1;
+            }
+
+            if (packetTime < last)
+            {
+                return -1;
+            }
+
+            return 0;
         }
 
         /// <summary>

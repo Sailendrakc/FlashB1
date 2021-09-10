@@ -10,15 +10,6 @@ namespace FlashB1
     {
         public event EventHandler<IArgObject> RecCompleteEvent;
 
-        public void SendInvoke(object sender, bool s)
-        {
-            if (SendingCompleteEvent == null)
-            {
-                return;
-            }
-            SendingCompleteEvent.Invoke(sender, s);
-        }
-
         public void RecInvoke(object sender, IArgObject s)
         {
             if (RecCompleteEvent == null)

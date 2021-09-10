@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Text;
 
 namespace FlashPeer
@@ -15,6 +16,8 @@ namespace FlashPeer
         public int DateForUDP { get; set; } //3 or
 
         public bool isReliable = false;
+
+        public FlashPeer peer;
 
         public Pockets[] AllPicklets;
     }

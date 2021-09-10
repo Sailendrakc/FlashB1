@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FlashB1\FlashB1.csproj" />
+    <ProjectReference Include="..\FlashPeer\FlashPeer.csproj" />
+  </ItemGroup>
+
+</Project>

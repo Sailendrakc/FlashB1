@@ -18,10 +18,11 @@ namespace FlashB1
 
         public UdpListener(UdpDataCard _setting)
         {
-            WorkingSocket = new SocketObj(portno, false);
+            setting = _setting;
+            WorkingSocket = new SocketObj(setting.port, false);
             recPool = new BasePooling<UdpArgObj>(setting.initReceiveObjects, setting.maxReceiveObjects, GenerateRecObject);
             sendPool = new BasePooling<UdpArgObj>(setting.initSendObjects, setting.maxSendObjects, GenerateSendObject);
-            setting = _setting;
+
         }
 
         public override void StartListener()
@@ -184,6 +185,11 @@ namespace FlashB1
         public byte[] GetRawData()
         {
             return base.Buffer;
+        }
+
+        public int getBytesTransferred()
+        {
+            return base.BytesTransferred;
         }
 
         public void ReturnToPool()

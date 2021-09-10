@@ -15,7 +15,7 @@ namespace FlashB1
 
         public void ReturnToPool();
 
-        public int BytesTransferred { get; set; }
+        public int getBytesTransferred();
 
     }
 }

@@ -1,5 +1,4 @@
-﻿using FlashPeer.interfaces;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -14,11 +13,29 @@ namespace FlashPeer
         private AesManaged ClientAES;
 
         private RSACryptoServiceProvider OurRsa;
-
-        public Crypto(string rsaKeytoUse)
+        private string testkey = "<RSAKeyValue><Modulus>mgMp3fgUlldflNQY00sCvP9DHy8zysSt4KdQFkPjGoAkzon9+QLdiTa2G57fC" +
+            "/29ahhTrsRRtPhhQVJyckl72Nm+/31ceD1bOvjVQF7vfTbnoyDJGuwu9DAcQwjUk6BIn8ScfVuFVFdRAxCPgrK3h/PGgDKP+wLD2U87La68WuTmOep1" +
+            "/BhVTVET7woa91ijTr4GUoLLSYJOH3+/MRYyIGZuDxTqXXD79XdqlsdxU0PsEuilKeKEk3uv3vE40eoQi6MrjEBW8xGI1RpG3Ya3Cq6VsWMRU" +
+            "+xB4X8mY48Vh6pYbpoNWAVI5rGbnOeh7IwBgEiN6urllE26KGLtGUzUpQ==</Modulus><Exponent>AQAB</Exponent><P>yHAzAoWgw1G" +
+            "ABJLrmdSoUZBOdhStgznI2iS5s2t01+cGCOlwFlZop5f9znCcferLAIvmZd2xoI55ereb7WHHBgKA9/LlnY8UV0uYYRlzFavXr7YecO1OsCP" +
+            "/yq0YG8AuOJ805301H5vUU4hGwnEqbTd3jQRgLPmkg9Pb38utT/8=</P><Q>xLRrL5vrQJYWNzVHxB8kdwsnAjHmC4eNfM4GWauNeLgllvC" +
+            "zOjBqW1WgY1CmyJkB1GRGjuBIniCEhLSQcGd/LM6zKKDWaa20+lVYYW3lyCIB34t3ovNc2xGWulMQzYmRJX7q0SBWSdvk7XrAaI1eJ+A5V62gO" +
+            "mCCqb79U5y+m1s=</Q><DP>DPCpamVEHrf5QtJVYYYII9PkLN1i4lDttZ+fWYT7cyDYE+U2Nkr30LIQUa6Ve8+XsX5Wrobke9AW6aRG7cldNvcca" +
+            "mWFC2n8TzJzMPmao3CHqTFhv7qiVN7OGcCZCNmcYk1s9fDwaA0AZTAsGUuDCLAHCNSafOzVASnBTS5yDvM=</DP><DQ>UshPN7kZt5Oyg8eDjXFBy" +
+            "mvCHfVcCEwi6nxWRdSh9EUjZLOl6f5INGoD1ugxWMiz8WvGGgkf5pRu0N6gzv1vky7mTVnrAoydVqEmUdKLWr+dJDQwxD5BPNzZH08oCig0EqCoOB" +
+            "yw0+KcJKl9YkLkdkmyOEkU3pyRQNjlChQ0T3M=</DQ><InverseQ>SaV+snltT7hiWDrEXjYp/oKT2QG/296uQCNnfhdwPnt911+eNHUD4NOh7" +
+            "eUykVfxD42loO35666o6teccbwlHcgDWIIgTP/+7x/AkZPOABymRj18QeB1kN+kdZuG201a7xavcxhPqT4E65smwOHgZv2B8mZ3VqcGwJ" +
+            "XjKhmxREY=</InverseQ><D>PYmKDwDy6Odcb5EXokVUgMPVw/4OSbSwbRUtMNhLQ+lzy3rjmb2FWzAbL4oZQSdPqbayqSAULaUY5wrUY8ns" +
+            "zEakxF0It5p8e2G1g5TrSDLJ9ypAcJtyX2thv38lwR7IJd5fUM9ixMJmwjy5utVB8/Z5l/ucAAWoz4mS8bvh0scIbzQb4JU0aNtxRoOC3onh" +
+            "BsW0zBv5Kce3aY/mz/iloAcpIYpvl4tjV7l5tgarPF4vRleMNHGIi7WU7SavBhLDo5x+27GyT/km5Za5I94J8P6FJeLYWla/Jo06/wZyIwNipQ" +
+            "lcFW5g0mw1d0py+sMva9M9cFpxuTZx8cYoBf63+Q==</D></RSAKeyValue>";
+        public Crypto(string rsaKeytoUse, bool isServer)
         {
             //crypto stuffs
-
+            if(rsaKeytoUse == null)
+            {
+                rsaKeytoUse = testkey;
+            }
             ClientAES = new AesManaged();
             ClientAES.Padding = PaddingMode.PKCS7;
             ClientAES.KeySize = 256;
@@ -30,22 +47,23 @@ namespace FlashPeer
 
             if (rsaKeytoUse != null)
             {
-                if (FClient.isClient)
+                if (isServer)
                 {
-                    RSAfromXmlString(false, ref OurRsa, rsaKeytoUse);
+                    RSAfromXmlString(true, ref OurRsa, rsaKeytoUse);
+                    
                 }
                 else
                 {
-                    RSAfromXmlString(true, ref OurRsa, rsaKeytoUse);
+                    RSAfromXmlString(false, ref OurRsa, rsaKeytoUse);
                 }
             }
         }
 
 
-        public bool HelloUnpacker(byte[] udata, IFlashPeer p)
+        public bool HelloUnpacker(byte[] udata, FlashPeer p)
         {
-            byte[] payld = new byte[256]; //(u.data.Length - FClient.Pmanager.Overhead)
-            Array.Copy(udata, PacketManager.PayloadSTR, payld, 0, 256);
+            byte[] payld = new byte[256]; //(u.data.Length - FlashProtocol.Instance.Pmanager.Overhead)
+            Array.Copy(udata, PacketSerializer.PayloadSTR, payld, 0, 256);
 
             byte[] b = RSADecrypt(payld);
 
@@ -69,7 +87,7 @@ namespace FlashPeer
         {
             if (data.Length != 256)
             {
-                FClient.RaiseOtherEvent("Cannot decrypt data with other length than 256", null, EventType.cryptography, null);
+                FlashProtocol.Instance.RaiseOtherEvent("Cannot decrypt data with other length than 256", null, EventType.cryptography, null);
                 return null;
             }
 
@@ -80,8 +98,8 @@ namespace FlashPeer
             catch (Exception e)
             {
                 byte[] toCheck = Encoding.UTF8.GetBytes(RSAtoXmlString(false, ref OurRsa));
-                byte tcrc = FClient.Pmanager.ComputeChecksum(toCheck, FClient.Pmanager.Crc16table, toCheck.Length);
-                FClient.RaiseOtherEvent($"ERROR:: crc of our public key is {tcrc} and e.msg is {e.Message}", null, EventType.cryptography, null);
+                byte tcrc = FlashProtocol.Instance.Pmaker.ComputeChecksum(toCheck, null, toCheck.Length);
+                FlashProtocol.Instance.RaiseOtherEvent($"ERROR:: crc of our public key is {tcrc} and e.msg is {e.Message}", null, EventType.cryptography, null);
 
                 return null;
             }
@@ -92,7 +110,7 @@ namespace FlashPeer
         {
             if (data.Length > 245) // just a test
             {
-                FClient.RaiseOtherEvent("RSA cannot encrypt data more than 245 bytes.", null, EventType.cryptography, null);
+                FlashProtocol.Instance.RaiseOtherEvent("RSA cannot encrypt data more than 245 bytes.", null, EventType.cryptography, null);
                 return null;
             }
 
@@ -317,7 +335,7 @@ namespace FlashPeer
         {
             if ((key.Length != 32) || (iv.Length != 16))
             {
-                FClient.RaiseOtherEvent("AES key or IV length not 32 or 16", null, EventType.cryptography, null);
+                FlashProtocol.Instance.RaiseOtherEvent("AES key or IV length not 32 or 16", null, EventType.cryptography, null);
                 return;
             }
             ClientAES.Key = key;
