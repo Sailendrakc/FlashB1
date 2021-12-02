@@ -3,8 +3,12 @@ using System.Net.Sockets;
 
 namespace FlashB1
 {
+
     static class GetIPv4
     {
+        /// <summary>
+        /// It returns ipv4 address.
+        /// </summary>
         public static IPAddress GetIpV4()
         {
             var host = Dns.GetHostEntry(Dns.GetHostName());

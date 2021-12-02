@@ -4,10 +4,20 @@ using System.Text;
 
 namespace FlashB1
 {
+    /// <summary>
+    /// This class is used to pool different kinds of frequently used objects.
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public class BasePooling<T>
     {
+        /// <summary>
+        /// The queue that stores objects
+        /// </summary>
         private readonly Queue<T> Pool;
 
+        /// <summary>
+        /// Object generation functions
+        /// </summary>
         private readonly Func<T> ObjectGenerator;
 
         /// <summary>
@@ -25,6 +35,9 @@ namespace FlashB1
         /// </summary>
         private int totalCount;
 
+        /// <summary>
+        /// Locking object for concurrency within an instance of base pool.
+        /// </summary>
         private readonly object lockobjec = new object();
 
         public BasePooling(int initNumberOfObjects, int maxNumberOfObjects, Func<T> generationFunction)

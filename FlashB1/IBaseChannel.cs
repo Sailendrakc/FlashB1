@@ -6,6 +6,11 @@ using System.Text;
 
 namespace FlashB1
 {
+    /// <summary>
+    /// This is the base class that should be inherited by any type of listner or sender of data (Channel),
+    /// For eg, UDP, TCP or Websockets etc.
+    /// </summary>
+    /// <typeparam name="Setting">Object with info on listening and sending data.</typeparam>
     public abstract class IBaseChannel<Setting>
     {
         public event EventHandler<IArgObject> RecCompleteEvent;

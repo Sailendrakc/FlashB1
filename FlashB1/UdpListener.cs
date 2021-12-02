@@ -8,12 +8,31 @@ using System.Diagnostics;
 
 namespace FlashB1
 {
+    /// <summary>
+    /// This implementation listens and sends data in UDP protocol.
+    /// </summary>
     public class UdpListener: IBaseChannel<UdpDataCard>
     {
         private int portno; //official
+
+        /// <summary>
+        /// The socket object this listner and sender (Channel) is using.
+        /// </summary>
         private SocketObj WorkingSocket = null;
+
+        /// <summary>
+        /// Pool of reusable objects used for receiving data.
+        /// </summary>
         private BasePooling<UdpArgObj> recPool;
+
+        /// <summary>
+        /// Pool of reusable objects uded for sending data.
+        /// </summary>
         private BasePooling<UdpArgObj> sendPool;
+
+        /// <summary>
+        /// Setting for this channel like port no, buffer memory  etc.
+        /// </summary>
         private UdpDataCard setting;
 
         public UdpListener(UdpDataCard _setting)
@@ -155,6 +174,9 @@ namespace FlashB1
         }
     }
 
+    /// <summary>
+    /// This is reusable object while performing udp send or receive operation.
+    /// </summary>
     public class UdpArgObj: SocketAsyncEventArgs, IArgObject
     {
         private readonly BasePooling<UdpArgObj> pool;
@@ -198,6 +220,9 @@ namespace FlashB1
         }
     }
 
+    /// <summary>
+    /// This is wrapper around socket object with additional required stuffs for this library.
+    /// </summary>
     internal class SocketObj : Socket
     {
         public IPEndPoint localIPEP;

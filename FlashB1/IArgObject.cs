@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 
 namespace FlashB1
 {
+    /// <summary>
+    /// This interface is returned by data listners to the high or app level program.
+    /// </summary>
     public interface IArgObject
     {
         public byte[] GetRawData();

@@ -9,6 +9,11 @@ using Fleck;
 
 namespace FlashB1
 {
+ 
+    /// <summary>
+    /// This class uses websockets for connection
+    /// THIS WAS NOT PART OF INITIAL PLAN SO WONT BE DEVELOPED UNTIL NEEDED.
+    /// </summary>
     public class WebSocketListener
     {
         private webSocketObject WebsocketServer = null;
